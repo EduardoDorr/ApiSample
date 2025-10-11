@@ -1,0 +1,6 @@
+@ContosoWebApp_HostAddress = http://localhost:5172
+
+GET {{ContosoWebApp_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
