@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gato-gordo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gato-gordo
+  template:
+    metadata:
+      labels:
+        app: gato-gordo
+    spec:
+      containers:
+      - name: gato-gordo
+        image: eduardodorr/gato-gordo:latest
+        ports:
+        - containerPort: 8080
+        resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

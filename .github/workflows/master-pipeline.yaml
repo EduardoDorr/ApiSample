@@ -1,0 +1,58 @@
+name: Build and deploy
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up .NET Core
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+
+      - name: Build application
+        run: dotnet publish ./ContosoWebApp/ContosoWebApp.csproj -c Release -o ./publish
+
+      - name: Build Docker Image
+        run: docker build -t gato-gordo:latest ./ContosoWebApp
+
+      - name: Tag & Push to Docker Hub
+        env:
+          DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+          DOCKER_HUB_ACCESS_TOKEN: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+        run: |
+          echo $DOCKER_HUB_ACCESS_TOKEN | docker login -u $DOCKER_HUB_USERNAME --password-stdin
+          docker tag gato-gordo:latest $DOCKER_HUB_USERNAME/gato-gordo:latest
+          docker push $DOCKER_HUB_USERNAME/gato-gordo:latest
+
+      - name: Prepare Kubeconfig
+        run: echo "${{ secrets.MICROK8S_KUBECONFIG }}" > kubeconfig.yaml
+
+      - name: Set up Kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Test cluster connection
+        run: kubectl --kubeconfig=kubeconfig.yaml get nodes
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl --kubeconfig=kubeconfig.yaml apply -f k8s/deployment.yaml --record
+          kubectl --kubeconfig=kubeconfig.yaml apply -f k8s/service.yaml --record
+          kubectl --kubeconfig=kubeconfig.yaml apply -f k8s/ingress.yaml --record
+          kubectl --kubeconfig=kubeconfig.yaml apply -f k8s/hpa.yaml --record
+
+      - name: Force rollout
+        run: |
+          kubectl --kubeconfig=kubeconfig.yaml rollout restart deployment/gato-gordo
+          kubectl --kubeconfig=kubeconfig.yaml rollout status deployment/gato-gordo --timeout=60s
